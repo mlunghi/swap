@@ -13,8 +13,10 @@ use anchor_spl::dex::serum_dex::instruction::SelfTradeBehavior;
 use anchor_spl::dex::serum_dex::matching::{OrderType, Side as SerumSide};
 use anchor_spl::dex::serum_dex::state::MarketState;
 use anchor_spl::token;
+use anchor_spl::token::TokenAccount;
 use solana_program::declare_id;
 use std::num::NonZeroU64;
+use solana_program::system_program;
 
 declare_id!("22Y43yTVxuUkoRKdm9thyRhQ3SdgQS7c7kB6UNCiaczD");
 
@@ -35,6 +37,13 @@ pub mod serum_swap {
     ) -> Result<()> {
         let ctx = CpiContext::new(ctx.accounts.dex_program.clone(), ctx.accounts.into());
         dex::close_open_orders(ctx)?;
+        Ok(())
+    }
+
+    // Token account initiliazer
+    pub fn init_token_account<'info>(
+        ctx: Context<'_, '_, '_, 'info, InitTokenAccount<'info>>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -202,6 +211,8 @@ pub mod serum_swap {
     }
 }
 
+
+
 // Asserts the swap event executed at an exchange rate acceptable to the client.
 fn apply_risk_checks(event: DidSwap) -> Result<()> {
     // Emit the event for client consumption.
@@ -360,6 +371,28 @@ impl<'info> From<&mut CloseAccount<'info>> for dex::CloseOpenOrders<'info> {
             market: accs.market.clone(),
         }
     }
+}
+
+#[derive(Accounts)]
+pub struct InitTokenAccount<'info> {
+    #[account(signer)]
+    user: AccountInfo<'info>, // account info is most primitive account (raw bytes, unwrapped / unsafe)
+    // specify the system program account
+    #[account(address=system_program::ID)]
+    system_program: AccountInfo<'info>,
+    #[account(
+        init,
+        // seeds = [b"my-token-seed".as_ref()],
+        // bump = token_bump,
+        payer = user, 
+        token::mint = mint, // type of token
+        token::authority = authority, // the program
+    )]
+    pub balances: Account<'info, TokenAccount>,
+    mint: AccountInfo<'info>,
+    authority: AccountInfo<'info>,
+    token_program: AccountInfo<'info>, // access to token smart contract
+    pub rent: Sysvar<'info, Rent>, // sysvar is generic over an inner type (rent)
 }
 
 // The only constraint imposed on these accounts is that the market's base
