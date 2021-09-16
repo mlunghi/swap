@@ -386,7 +386,7 @@ pub struct InitTokenAccount<'info> {
         // bump = token_bump,
         payer = user, 
         token::mint = mint, // type of token
-        token::authority = authority, // the program
+        token::authority = authority // the program
     )]
     pub balances: Account<'info, TokenAccount>,
     mint: AccountInfo<'info>,
