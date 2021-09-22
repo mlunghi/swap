@@ -382,8 +382,8 @@ pub struct InitTokenAccount<'info> {
     system_program: AccountInfo<'info>,
     #[account(
         init,
-        // seeds = [b"my-token-seed".as_ref()],
-        // bump = token_bump,
+        seeds = [b"my-token-seed".as_ref()], // determine how to create the address (key in a KV pair)
+        bump, // the extra seed that guarantees that PDA is protected
         payer = user, 
         token::mint = mint, // type of token
         token::authority = authority // the program

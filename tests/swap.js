@@ -7,13 +7,15 @@ const OpenOrders = require("@project-serum/serum").OpenOrders;
 const TOKEN_PROGRAM_ID = require("@solana/spl-token").TOKEN_PROGRAM_ID;
 const serumCmn = require("@project-serum/common");
 const utils = require("./utils");
+const { SYSVAR_RENT_PUBKEY, Keypair, PublicKey } = require("@solana/web3.js");
+const { Console } = require("console");
 
 // Taker fee rate (bps).
 const TAKER_FEE = 0.0022;
 
 describe("swap", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.Provider.env());
+  anchor.setProvider(anchor.Provider.local());
 
   // Swap program client.
   const program = anchor.workspace.SerumSwap;
@@ -374,6 +376,25 @@ describe("swap", () => {
     assert.ok(usdcChange >= 0);
   });
 
+  // Token program test -- MATTEO 
+  it("Initiates token program", async () => {
+    // let balances = Keypair.generate(); // gets private key
+    let [balances, bump] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("my-token-seed")], program.programId)
+    await program.rpc.initTokenAccount({
+        accounts: {
+          user: program.provider.wallet.publicKey,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          balances : balances,
+          mint : ORDERBOOK_ENV.mintA,
+          authority : program.provider.wallet.publicKey, // pda
+          tokenProgram : TOKEN_PROGRAM_ID,
+          rent : SYSVAR_RENT_PUBKEY 
+          },
+      })
+      console.log(await serumCmn.getTokenAccount(program.provider, balances));
+  })
+
+
   it("Swaps from Token B to Token A", async () => {
     const marketA = ORDERBOOK_ENV.marketA;
     const marketB = ORDERBOOK_ENV.marketB;
@@ -474,3 +495,5 @@ async function withBalanceChange(provider, addrs, fn) {
   }
   return deltas;
 }
+
+// 
