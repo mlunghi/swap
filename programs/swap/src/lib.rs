@@ -328,12 +328,25 @@ fn apply_risk_checks(event: DidSwap) -> Result<()> {
     Ok(())
 }
 
+// Original open order account init
+
+// #[derive(Accounts)]
+// pub struct InitAccount<'info> {
+//     #[account(mut)]
+//     open_orders: AccountInfo<'info>,
+//     #[account(signer)]
+//     authority: AccountInfo<'info>,
+//     market: AccountInfo<'info>,
+//     dex_program: AccountInfo<'info>,
+//     rent: AccountInfo<'info>,
+// }
+
 #[derive(Accounts)]
 pub struct InitAccount<'info> {
     #[account(mut)]
     open_orders: AccountInfo<'info>,
-    #[account(signer)]
-    authority: AccountInfo<'info>,
+    #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)] // domain separation for pdas
+    authority: AccountInfo<'info>, // PDA here right? --> governed by Token Program
     market: AccountInfo<'info>,
     dex_program: AccountInfo<'info>,
     rent: AccountInfo<'info>,
@@ -373,6 +386,42 @@ impl<'info> From<&mut CloseAccount<'info>> for dex::CloseOpenOrders<'info> {
     }
 }
 
+// Matteo account initiation
+
+// -- init open orders account -- 
+
+// #[derive(Accounts)]
+// pub struct InitAccount<'info> {
+//     #[account(mut)]
+//     open_orders: AccountInfo<'info>,
+//     #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)] // domain separation for pdas
+//     authority: AccountInfo<'info>, // PDA here right? --> governed by Token Program
+//     market: AccountInfo<'info>,
+//     dex_program: AccountInfo<'info>,
+//     rent: AccountInfo<'info>,
+// }
+
+// only token program can change data of open order account
+// 
+
+// impl<'info> From<&mut InitAccount<'info>> for dex::InitOpenOrders<'info> {
+//     fn from(accs: &mut InitAccount<'info>) -> dex::InitOpenOrders<'info> {
+//         dex::InitOpenOrders {
+//             open_orders: accs.open_orders.clone(),
+//             authority: //accs.authority.clone(),
+//             market: accs.market.clone(),
+//             rent: accs.rent.clone(),
+//         }
+//     }
+// }
+
+// Questions for Armani:
+// - Is the authority the token program that will use PDA to sign? If so, clone?
+// - To sign an account with a PDA we need to call invoke_signed right? Where does this happen?
+
+
+// -- init open token program account -- 
+
 #[derive(Accounts)]
 pub struct InitTokenAccount<'info> {
     #[account(signer)]
@@ -389,7 +438,9 @@ pub struct InitTokenAccount<'info> {
         token::authority = authority // the program
     )]
     pub balances: Account<'info, TokenAccount>,
+    market: AccountInfo<'info>,
     mint: AccountInfo<'info>,
+    #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)]
     authority: AccountInfo<'info>,
     token_program: AccountInfo<'info>, // access to token smart contract
     pub rent: Sysvar<'info, Rent>, // sysvar is generic over an inner type (rent)
