@@ -13,10 +13,9 @@ use anchor_spl::dex::serum_dex::instruction::SelfTradeBehavior;
 use anchor_spl::dex::serum_dex::matching::{OrderType, Side as SerumSide};
 use anchor_spl::dex::serum_dex::state::MarketState;
 use anchor_spl::token;
-use anchor_spl::token::TokenAccount;
 use solana_program::declare_id;
 use std::num::NonZeroU64;
-use solana_program::system_program;
+use anchor_spl::dex::serum_dex::state::OpenOrders;
 
 declare_id!("22Y43yTVxuUkoRKdm9thyRhQ3SdgQS7c7kB6UNCiaczD");
 
@@ -24,8 +23,12 @@ declare_id!("22Y43yTVxuUkoRKdm9thyRhQ3SdgQS7c7kB6UNCiaczD");
 pub mod serum_swap {
     use super::*;
 
+    // Ask Armani:
+    // all of these should be private under new architecture right?
+
     /// Convenience API to initialize an open orders account on the Serum DEX.
     pub fn init_account<'info>(ctx: Context<'_, '_, '_, 'info, InitAccount<'info>>) -> Result<()> {
+
         let ctx = CpiContext::new(ctx.accounts.dex_program.clone(), ctx.accounts.into());
         dex::init_open_orders(ctx)?;
         Ok(())
@@ -37,13 +40,6 @@ pub mod serum_swap {
     ) -> Result<()> {
         let ctx = CpiContext::new(ctx.accounts.dex_program.clone(), ctx.accounts.into());
         dex::close_open_orders(ctx)?;
-        Ok(())
-    }
-
-    // Token account initiliazer
-    pub fn init_token_account<'info>(
-        ctx: Context<'_, '_, '_, 'info, InitTokenAccount<'info>>,
-    ) -> Result<()> {
         Ok(())
     }
 
@@ -209,9 +205,67 @@ pub mod serum_swap {
 
         Ok(())
     }
+
+
+    // Client-side function to OpenAccount->ExecuteTrade->CloseAccount
+    // for a NORMAL SWAP
+    pub fn client_order_executor<'info>(
+        ctx: Context<'_, '_, '_, 'info, ClientOrderExecutor<'info>>,
+        amount: u64,
+        min_exchange_rate: ExchangeRate,
+        side  : Side
+    ) -> Result<()> {
+
+        let ClientOrderExecutor {
+            account_init,
+            swap_account,
+            account_close
+        }  = ctx.accounts;
+
+        let init_account_ctx = Context::new(ctx.program_id, account_init, &[]);
+        // let new_account = init_account(init_account_ctx);
+        init_account(init_account_ctx);
+
+        let swap_account_ctx = Context::new(ctx.program_id, swap_account, &[]);
+        let spill_amount = swap(swap_account_ctx, side, amount, min_exchange_rate);
+       
+        let close_account_ctx = Context::new(ctx.program_id, account_close, &[]);
+        // let closed_account = close_account(close_account_ctx);
+        close_account(close_account_ctx);
+
+        Ok(())
+    }
+
+    // Client-side function to OpenAccount->ExecuteTrade->CloseAccount
+    // for a TRANSITIVE SWAP
+    pub fn client_order_executor_transitive<'info>(
+        ctx: Context<'_, '_, '_, 'info, ClientOrderExecutorTransitive<'info>>,
+        amount: u64,
+        min_exchange_rate: ExchangeRate
+    ) -> Result<()> {
+
+        let ClientOrderExecutorTransitive {
+            account_init,
+            swap_trainsitive_account,
+            account_close
+        }  = ctx.accounts;
+
+        let init_account_ctx = Context::new(ctx.program_id, account_init, &[]);
+        // let new_account = init_account(init_account_ctx);
+        init_account(init_account_ctx);
+
+        let swap_trainsitive_account_ctx = Context::new(ctx.program_id, swap_trainsitive_account, &[]);
+        let spill_amount = swap_transitive(swap_trainsitive_account_ctx, amount, min_exchange_rate);
+       
+        let close_account_ctx = Context::new(ctx.program_id, account_close, &[]);
+        // let closed_account = close_account(close_account_ctx);
+        close_account(close_account_ctx);
+
+        Ok(())
+    }
+
+    
 }
-
-
 
 // Asserts the swap event executed at an exchange rate acceptable to the client.
 fn apply_risk_checks(event: DidSwap) -> Result<()> {
@@ -328,8 +382,6 @@ fn apply_risk_checks(event: DidSwap) -> Result<()> {
     Ok(())
 }
 
-// Original open order account init
-
 // #[derive(Accounts)]
 // pub struct InitAccount<'info> {
 //     #[account(mut)]
@@ -342,15 +394,37 @@ fn apply_risk_checks(event: DidSwap) -> Result<()> {
 // }
 
 #[derive(Accounts)]
+pub struct ClientOrderExecutor<'info> {
+    account_init  : InitAccount<'info>,
+    swap_account : Swap<'info>,
+    account_close : CloseAccount<'info>
+}
+
+#[derive(Accounts)]
+pub struct ClientOrderExecutorTransitive<'info> {
+    account_init  : InitAccount<'info>,
+    swap_trainsitive_account : SwapTransitive<'info>,
+    account_close : CloseAccount<'info>
+}
+
+#[derive(Accounts)]
 pub struct InitAccount<'info> {
-    #[account(mut)]
+    #[account(
+        init, 
+        seeds=[b"open-orders-account".as_ref(), market.key.as_ref()],
+        bump,
+        space = 12 + std::mem::size_of::<OpenOrders>(),
+        payer = authority,
+        owner = dex::ID //only thing that can change an account is the owner
+    )] // domain separation for pdas
     open_orders: AccountInfo<'info>,
-    #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)] // domain separation for pdas
-    authority: AccountInfo<'info>, // PDA here right? --> governed by Token Program
+    authority: AccountInfo<'info>,
     market: AccountInfo<'info>,
     dex_program: AccountInfo<'info>,
     rent: AccountInfo<'info>,
+    system_program : AccountInfo<'info>
 }
+
 
 impl<'info> From<&mut InitAccount<'info>> for dex::InitOpenOrders<'info> {
     fn from(accs: &mut InitAccount<'info>) -> dex::InitOpenOrders<'info> {
@@ -384,66 +458,6 @@ impl<'info> From<&mut CloseAccount<'info>> for dex::CloseOpenOrders<'info> {
             market: accs.market.clone(),
         }
     }
-}
-
-// Matteo account initiation
-
-// -- init open orders account -- 
-
-// #[derive(Accounts)]
-// pub struct InitAccount<'info> {
-//     #[account(mut)]
-//     open_orders: AccountInfo<'info>,
-//     #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)] // domain separation for pdas
-//     authority: AccountInfo<'info>, // PDA here right? --> governed by Token Program
-//     market: AccountInfo<'info>,
-//     dex_program: AccountInfo<'info>,
-//     rent: AccountInfo<'info>,
-// }
-
-// only token program can change data of open order account
-// 
-
-// impl<'info> From<&mut InitAccount<'info>> for dex::InitOpenOrders<'info> {
-//     fn from(accs: &mut InitAccount<'info>) -> dex::InitOpenOrders<'info> {
-//         dex::InitOpenOrders {
-//             open_orders: accs.open_orders.clone(),
-//             authority: //accs.authority.clone(),
-//             market: accs.market.clone(),
-//             rent: accs.rent.clone(),
-//         }
-//     }
-// }
-
-// Questions for Armani:
-// - Is the authority the token program that will use PDA to sign? If so, clone?
-// - To sign an account with a PDA we need to call invoke_signed right? Where does this happen?
-
-
-// -- init open token program account -- 
-
-#[derive(Accounts)]
-pub struct InitTokenAccount<'info> {
-    #[account(signer)]
-    user: AccountInfo<'info>, // account info is most primitive account (raw bytes, unwrapped / unsafe)
-    // specify the system program account
-    #[account(address=system_program::ID)]
-    system_program: AccountInfo<'info>,
-    #[account(
-        init,
-        seeds = [b"my-token-seed".as_ref()], // determine how to create the address (key in a KV pair)
-        bump, // the extra seed that guarantees that PDA is protected
-        payer = user, 
-        token::mint = mint, // type of token
-        token::authority = authority // the program
-    )]
-    pub balances: Account<'info, TokenAccount>,
-    market: AccountInfo<'info>,
-    mint: AccountInfo<'info>,
-    #[account(seeds=[b"open-orders-account".as_ref(), market.key.as_ref()], bump)]
-    authority: AccountInfo<'info>,
-    token_program: AccountInfo<'info>, // access to token smart contract
-    pub rent: Sysvar<'info, Rent>, // sysvar is generic over an inner type (rent)
 }
 
 // The only constraint imposed on these accounts is that the market's base
