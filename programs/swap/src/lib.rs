@@ -23,12 +23,8 @@ declare_id!("22Y43yTVxuUkoRKdm9thyRhQ3SdgQS7c7kB6UNCiaczD");
 pub mod serum_swap {
     use super::*;
 
-    // Ask Armani:
-    // all of these should be private under new architecture right?
-
     /// Convenience API to initialize an open orders account on the Serum DEX.
     pub fn init_account<'info>(ctx: Context<'_, '_, '_, 'info, InitAccount<'info>>) -> Result<()> {
-
         let ctx = CpiContext::new(ctx.accounts.dex_program.clone(), ctx.accounts.into());
         dex::init_open_orders(ctx)?;
         Ok(())

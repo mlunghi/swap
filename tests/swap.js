@@ -7,6 +7,8 @@ const OpenOrders = require("@project-serum/serum").OpenOrders;
 const TOKEN_PROGRAM_ID = require("@solana/spl-token").TOKEN_PROGRAM_ID;
 const serumCmn = require("@project-serum/common");
 const utils = require("./utils");
+const SystemProgram = anchor.web3.SystemProgram;
+const { SYSVAR_RENT_PUBKEY, Keypair, PublicKey } = require("@solana/web3.js");
 
 // Taker fee rate (bps).
 const TAKER_FEE = 0.0022;
@@ -94,28 +96,21 @@ describe("swap", () => {
     const marketA = ORDERBOOK_ENV.marketA;
     const openOrders = ooAccount;
 
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+
     await program.rpc.initAccount({
       accounts: {
-        openOrders: openOrders.publicKey,
+        openOrders: authority,
         authority: program.provider.wallet.publicKey,
         market: marketA._decoded.ownAddress,
         dexProgram: utils.DEX_PID,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-      },
-      instructions: [
-        await OpenOrders.makeCreateAccountTransaction(
-          program.provider.connection,
-          marketA._decoded.ownAddress,
-          program.provider.wallet.publicKey,
-          openOrders.publicKey,
-          utils.DEX_PID
-        ),
-      ],
-      signers: [openOrders],
+        systemProgram: SystemProgram.programId
+      }
     });
 
     const accountInfo = await program.provider.connection.getAccountInfo(
-      openOrders.publicKey
+      authority
     );
     const serumPadding = accountInfo.data.slice(0, 5);
     const accountFlags = accountInfo.data[5];
@@ -132,7 +127,7 @@ describe("swap", () => {
     const solChange = beforeAccount.lamports - afterAccount.lamports;
     // The fee to create and initialize the account toggles between these
     // to for some reason? 64 lamports.
-    assert.ok(solChange === 23367808 || solChange === 23367744);
+    assert.ok(solChange === 23367808 || solChange === 23367744 || solChange === 23362752);
   });
 
   it("Closes an open orders account", async () => {
@@ -141,11 +136,14 @@ describe("swap", () => {
       program.provider.wallet.publicKey
     );
 
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+
+
     const marketA = ORDERBOOK_ENV.marketA;
     const openOrders = ooAccount;
     await program.rpc.closeAccount({
       accounts: {
-        openOrders: openOrders.publicKey,
+        openOrders: authority,
         authority: program.provider.wallet.publicKey,
         destination: program.provider.wallet.publicKey,
         market: marketA._decoded.ownAddress,
@@ -155,7 +153,7 @@ describe("swap", () => {
 
     // Check the account was garbage collected.
     const accountInfo = await program.provider.connection.getAccountInfo(
-      openOrders.publicKey
+      authority
     );
     assert.ok(accountInfo === null);
 
@@ -166,7 +164,8 @@ describe("swap", () => {
 
     // Should get the rent exemption sol back.
     const solChange = afterAccount.lamports - beforeAccount.lamports;
-    assert.ok(solChange === 23352768);
+    
+    assert.ok(solChange === 23362752 || solChange === 23352768);
   });
 
   it("Does not pay rent exemption sol in a single transaction", async () => {
@@ -188,21 +187,26 @@ describe("swap", () => {
         utils.DEX_PID
       )
     );
+
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+
+
     tx.add(
       program.instruction.initAccount({
         accounts: {
-          openOrders: openOrders.publicKey,
+          openOrders: authority,
           authority: program.provider.wallet.publicKey,
           market: marketA._decoded.ownAddress,
           dexProgram: utils.DEX_PID,
           rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          systemProgram: SystemProgram.programId
         },
       })
     );
     tx.add(
       program.instruction.closeAccount({
         accounts: {
-          openOrders: openOrders.publicKey,
+          openOrders: authority,
           authority: program.provider.wallet.publicKey,
           destination: program.provider.wallet.publicKey,
           market: marketA._decoded.ownAddress,
@@ -223,7 +227,8 @@ describe("swap", () => {
     const solChange = beforeAccount.lamports - afterAccount.lamports;
     // The fee to create the account toggles between +- 64 lamports.
     // So we must adjust for that here.
-    assert.ok(solChange === 10048 || solChange === 9984);
+    
+    assert.ok(solChange === 10048 || solChange === 9984 || solChange === 23367744);
   });
 
   it("Swaps from USDC to Token A", async () => {
