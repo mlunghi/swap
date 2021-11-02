@@ -82,6 +82,38 @@ describe("swap", () => {
         orderPayerTokenAccount: ORDERBOOK_ENV.godA,
       },
     };
+
+    // MATTEO CODE
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+    SWAP_USDC_A_ACCOUNTS_2 = {
+      market: {
+        market: authority,
+        requestQueue: marketA._decoded.requestQueue,
+        eventQueue: marketA._decoded.eventQueue,
+        bids: marketA._decoded.bids,
+        asks: marketA._decoded.asks,
+        coinVault: marketA._decoded.baseVault,
+        pcVault: marketA._decoded.quoteVault,
+        vaultSigner: marketAVaultSigner,
+        // User params.
+        openOrders: openOrdersA.publicKey,
+        orderPayerTokenAccount: ORDERBOOK_ENV.godUsdc,
+        coinWallet: ORDERBOOK_ENV.godA,
+      },
+      pcWallet: ORDERBOOK_ENV.godUsdc,
+      authority: program.provider.wallet.publicKey,
+      dexProgram: utils.DEX_PID,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+    };
+    SWAP_A_USDC_ACCOUNTS_2 = {
+      ...SWAP_USDC_A_ACCOUNTS_2,
+      market: {
+        ...SWAP_USDC_A_ACCOUNTS_2.market,
+        orderPayerTokenAccount: ORDERBOOK_ENV.godA,
+      },
+    };
+
   });
 
   // For testing the initialization and closing of the open orders account.
@@ -227,8 +259,8 @@ describe("swap", () => {
     const solChange = beforeAccount.lamports - afterAccount.lamports;
     // The fee to create the account toggles between +- 64 lamports.
     // So we must adjust for that here.
-    
-    assert.ok(solChange === 10048 || solChange === 9984 || solChange === 23367744);
+    console.log(solChange);
+    assert.ok(solChange === 10048 || solChange === 9984 || solChange === 23367744 | solChange === 23367808);
   });
 
   it("Swaps from USDC to Token A", async () => {
@@ -444,6 +476,58 @@ describe("swap", () => {
     assert.ok(tokenBChange === -swapAmount);
     assert.ok(usdcChange >= 0);
   });
+
+  it("It tests client_order_executor", async () => {
+
+    const marketA = ORDERBOOK_ENV.marketA;
+
+    // Swap exactly enough USDC to get 1.2 A tokens (best offer price is 6.041 USDC).
+    const expectedResultantAmount = 7.2;
+    const bestOfferPrice = 6.041;
+    const amountToSpend = expectedResultantAmount * bestOfferPrice;
+    const swapAmount = new BN((amountToSpend / (1 - TAKER_FEE)) * 10 ** 6);
+
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+   
+    await program.rpc.clientOrderExecutor(
+      new BN(swapAmount * 10 ** 6),
+      {
+          rate: new BN(5 * 10 ** 6),
+          fromDecimals: 6,
+          toDecimals: 6,
+          strict: false,
+      },
+      Side.Ask,
+      { accounts : {
+        accountInit: {
+            openOrders: authority,
+            authority: program.provider.wallet.publicKey,
+            market: marketA._decoded.ownAddress,
+            dexProgram: utils.DEX_PID,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+            systemProgram: SystemProgram.programId
+                        },
+        swapAccount: SWAP_USDC_A_ACCOUNTS,
+        accountClose: {
+            openOrders: authority,
+            authority: program.provider.wallet.publicKey,
+            market: marketA._decoded.ownAddress,
+            dexProgram: utils.DEX_PID,
+            rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+            systemProgram: SystemProgram.programId,
+            destination: program.provider.wallet.publicKey
+        }
+      }
+    });
+
+    // Check the account was garbage collected.
+    const accountInfo = await program.provider.connection.getAccountInfo(
+      authority
+    );
+    assert.ok(accountInfo === null);
+
+  });
+
 });
 
 // Side rust enum used for the program's RPC API.

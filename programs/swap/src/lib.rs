@@ -219,15 +219,21 @@ pub mod serum_swap {
         }  = ctx.accounts;
 
         let init_account_ctx = Context::new(ctx.program_id, account_init, &[]);
+        msg!("1");
+
         // let new_account = init_account(init_account_ctx);
         init_account(init_account_ctx);
+        msg!("2");
+
 
         let swap_account_ctx = Context::new(ctx.program_id, swap_account, &[]);
         let spill_amount = swap(swap_account_ctx, side, amount, min_exchange_rate);
-       
+        msg!("here");
         let close_account_ctx = Context::new(ctx.program_id, account_close, &[]);
         // let closed_account = close_account(close_account_ctx);
         close_account(close_account_ctx);
+        msg!("3");
+
 
         Ok(())
     }
@@ -247,15 +253,21 @@ pub mod serum_swap {
         }  = ctx.accounts;
 
         let init_account_ctx = Context::new(ctx.program_id, account_init, &[]);
+        msg!("1");
         // let new_account = init_account(init_account_ctx);
         init_account(init_account_ctx);
+        msg!("2");
+
 
         let swap_trainsitive_account_ctx = Context::new(ctx.program_id, swap_trainsitive_account, &[]);
         let spill_amount = swap_transitive(swap_trainsitive_account_ctx, amount, min_exchange_rate);
-       
+        msg!("3");
+
         let close_account_ctx = Context::new(ctx.program_id, account_close, &[]);
         // let closed_account = close_account(close_account_ctx);
         close_account(close_account_ctx);
+        msg!("4");
+
 
         Ok(())
     }
@@ -378,16 +390,6 @@ fn apply_risk_checks(event: DidSwap) -> Result<()> {
     Ok(())
 }
 
-// #[derive(Accounts)]
-// pub struct InitAccount<'info> {
-//     #[account(mut)]
-//     open_orders: AccountInfo<'info>,
-//     #[account(signer)]
-//     authority: AccountInfo<'info>,
-//     market: AccountInfo<'info>,
-//     dex_program: AccountInfo<'info>,
-//     rent: AccountInfo<'info>,
-// }
 
 #[derive(Accounts)]
 pub struct ClientOrderExecutor<'info> {
@@ -396,12 +398,14 @@ pub struct ClientOrderExecutor<'info> {
     account_close : CloseAccount<'info>
 }
 
+
 #[derive(Accounts)]
 pub struct ClientOrderExecutorTransitive<'info> {
     account_init  : InitAccount<'info>,
     swap_trainsitive_account : SwapTransitive<'info>,
     account_close : CloseAccount<'info>
 }
+
 
 #[derive(Accounts)]
 pub struct InitAccount<'info> {
