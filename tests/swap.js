@@ -83,37 +83,6 @@ describe("swap", () => {
       },
     };
 
-    // MATTEO CODE
-    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
-    SWAP_USDC_A_ACCOUNTS_2 = {
-      market: {
-        market: authority,
-        requestQueue: marketA._decoded.requestQueue,
-        eventQueue: marketA._decoded.eventQueue,
-        bids: marketA._decoded.bids,
-        asks: marketA._decoded.asks,
-        coinVault: marketA._decoded.baseVault,
-        pcVault: marketA._decoded.quoteVault,
-        vaultSigner: marketAVaultSigner,
-        // User params.
-        openOrders: openOrdersA.publicKey,
-        orderPayerTokenAccount: ORDERBOOK_ENV.godUsdc,
-        coinWallet: ORDERBOOK_ENV.godA,
-      },
-      pcWallet: ORDERBOOK_ENV.godUsdc,
-      authority: program.provider.wallet.publicKey,
-      dexProgram: utils.DEX_PID,
-      tokenProgram: TOKEN_PROGRAM_ID,
-      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-    };
-    SWAP_A_USDC_ACCOUNTS_2 = {
-      ...SWAP_USDC_A_ACCOUNTS_2,
-      market: {
-        ...SWAP_USDC_A_ACCOUNTS_2.market,
-        orderPayerTokenAccount: ORDERBOOK_ENV.godA,
-      },
-    };
-
   });
 
   // For testing the initialization and closing of the open orders account.
@@ -481,11 +450,12 @@ describe("swap", () => {
 
     const marketA = ORDERBOOK_ENV.marketA;
 
-    // Swap exactly enough USDC to get 1.2 A tokens (best offer price is 6.041 USDC).
-    const expectedResultantAmount = 7.2;
-    const bestOfferPrice = 6.041;
-    const amountToSpend = expectedResultantAmount * bestOfferPrice;
-    const swapAmount = new BN((amountToSpend / (1 - TAKER_FEE)) * 10 ** 6);
+    // set up is the same as the Swap test
+   const swapAmount = 8.1;
+   const bestBidPrice = 6.004;
+   const amountToFill = swapAmount * bestBidPrice;
+   const takerFee = 0.0022;
+   const resultantAmount = new BN(amountToFill * (1 - TAKER_FEE) * 10 ** 6);
 
     let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
    
@@ -507,7 +477,7 @@ describe("swap", () => {
             rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             systemProgram: SystemProgram.programId
                         },
-        swapAccount: SWAP_USDC_A_ACCOUNTS,
+        swapAccount: SWAP_A_USDC_ACCOUNTS,
         accountClose: {
             openOrders: authority,
             authority: program.provider.wallet.publicKey,
