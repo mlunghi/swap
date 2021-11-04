@@ -219,20 +219,18 @@ pub mod serum_swap {
         }  = ctx.accounts;
 
         let init_account_ctx = Context::new(ctx.program_id, account_init, &[]);
-        msg!("1");
+        // msg!("1");
 
         // let new_account = init_account(init_account_ctx);
-        init_account(init_account_ctx);
-        msg!("2");
-
+        init_account(init_account_ctx);     
 
         let swap_account_ctx = Context::new(ctx.program_id, swap_account, &[]);
         let spill_amount = swap(swap_account_ctx, side, amount, min_exchange_rate);
-        msg!("here");
+        // msg!("here");
         let close_account_ctx = Context::new(ctx.program_id, account_close, &[]);
         // let closed_account = close_account(close_account_ctx);
         close_account(close_account_ctx);
-        msg!("3");
+        // msg!("3");
 
 
         Ok(())
@@ -424,7 +422,6 @@ pub struct InitAccount<'info> {
     rent: AccountInfo<'info>,
     system_program : AccountInfo<'info>
 }
-
 
 impl<'info> From<&mut InitAccount<'info>> for dex::InitOpenOrders<'info> {
     fn from(accs: &mut InitAccount<'info>) -> dex::InitOpenOrders<'info> {

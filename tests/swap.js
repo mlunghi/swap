@@ -54,6 +54,9 @@ describe("swap", () => {
     marketAVaultSigner = vaultSignerA;
     marketBVaultSigner = vaultSignerB;
 
+    let [authority, bumpAuthority] = await PublicKey.findProgramAddress([anchor.utils.bytes.utf8.encode("open-orders-account"), ORDERBOOK_ENV.marketA.address.toBuffer()], program.programId);
+
+
     SWAP_USDC_A_ACCOUNTS = {
       market: {
         market: marketA._decoded.ownAddress,
@@ -75,6 +78,37 @@ describe("swap", () => {
       tokenProgram: TOKEN_PROGRAM_ID,
       rent: anchor.web3.SYSVAR_RENT_PUBKEY,
     };
+
+    SWAP_USDC_A_ACCOUNTS_Matteo = {
+      market: {
+        market: marketA._decoded.ownAddress,
+        requestQueue: marketA._decoded.requestQueue,
+        eventQueue: marketA._decoded.eventQueue,
+        bids: marketA._decoded.bids,
+        asks: marketA._decoded.asks,
+        coinVault: marketA._decoded.baseVault,
+        pcVault: marketA._decoded.quoteVault,
+        vaultSigner: marketAVaultSigner,
+        // User params.
+        openOrders: authority,
+        orderPayerTokenAccount: ORDERBOOK_ENV.godUsdc,
+        coinWallet: ORDERBOOK_ENV.godA,
+      },
+      pcWallet: ORDERBOOK_ENV.godUsdc,
+      authority: program.provider.wallet.publicKey,
+      dexProgram: utils.DEX_PID,
+      tokenProgram: TOKEN_PROGRAM_ID,
+      rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+    };
+
+    SWAP_A_USDC_ACCOUNTS_Matteo = {
+      ...SWAP_USDC_A_ACCOUNTS_Matteo,
+      market: {
+        ...SWAP_USDC_A_ACCOUNTS_Matteo.market,
+        orderPayerTokenAccount: ORDERBOOK_ENV.godA,
+      },
+    };
+
     SWAP_A_USDC_ACCOUNTS = {
       ...SWAP_USDC_A_ACCOUNTS,
       market: {
@@ -477,7 +511,7 @@ describe("swap", () => {
             rent: anchor.web3.SYSVAR_RENT_PUBKEY,
             systemProgram: SystemProgram.programId
                         },
-        swapAccount: SWAP_A_USDC_ACCOUNTS,
+        swapAccount: SWAP_A_USDC_ACCOUNTS_Matteo,
         accountClose: {
             openOrders: authority,
             authority: program.provider.wallet.publicKey,
